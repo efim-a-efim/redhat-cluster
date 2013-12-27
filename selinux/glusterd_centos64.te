@@ -1,0 +1,15 @@
+
+module glusterd_centos64 1.0;
+
+require {
+	type glusterd_exec_t;
+	type sysctl_net_t;
+	type mount_t;
+	class dir search;
+	class file { read execute execute_no_trans };
+}
+
+#============= mount_t ==============
+allow mount_t glusterd_exec_t:file { execute execute_no_trans };
+allow mount_t sysctl_net_t:dir search;
+allow mount_t sysctl_net_t:file read;

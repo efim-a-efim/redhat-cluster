@@ -1,0 +1,456 @@
+diff --git a/templates/fence_devices.html b/templates/fence_devices.html
+index 99c3bf1..6bde2ae 100644
+--- a/templates/fence_devices.html
++++ b/templates/fence_devices.html
+@@ -1452,6 +1452,207 @@
+   <input type="hidden" name="fence_type" value="fence_virsh" />
+ </div>
+ 
++<div py:def="fence_pvevm(cur_fencedev, ni)" id="fence_pvevm" class="fencedevform row"
++   py:attrs="cur_fencedev and {'id': 'fd_%s' % cur_fencedev.getName()}">
++  <table class="formtable">
++    <tr>
++      <td>Fence Type</td>
++      <td>Proxmox VE VM Fence Agent</td>
++    </tr>
++    <tr>
++      <td>Name</td>
++      <td>
++        <input name="name" type="text" class="text"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getName()} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>IP Address or Hostname</td>
++      <td>
++        <input name="ipaddr" type="text" class="text"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('ipaddr')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>IP Port (optional)</td>
++      <td>
++        <input name="ipport" type="text" class="text"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('ipport')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Login</td>
++      <td>
++        <input name="login" type="text" class="text"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('login')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Password</td>
++      <td>
++        <input name="passwd" type="password" class="text" autocomplete="off"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('passwd')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>
++        <span title="Full path to a script to generate fence password">Password Script (optional)</span>
++      </td>
++      <td>
++        <input type="text" class="text" name="passwd_script"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('passwd_script')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Power Wait (seconds)</td>
++      <td>
++        <input type="text" class="text" name="power_wait"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('power_wait')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Power Timeout (seconds)</td>
++      <td>
++        <input type="text" class="text" name="power_timeout"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('power_timeout')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Shell Timeout (seconds)</td>
++      <td>
++        <input type="text" class="text" name="shell_timeout"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('shell_timeout')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Login Timeout (seconds)</td>
++      <td>
++        <input type="text" class="text" name="login_timeout"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('login_timeout')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Times to Retry Power On Operation</td>
++      <td>
++        <input type="text" class="text" name="retry_on"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('retry_on')} or {}"/>
++      </td>
++    </tr>
++  </table>
++
++  <py:if test="cur_fencedev">
++    <input type="hidden"
++      name="orig_name" value="${cur_fencedev.getName()}"/>
++    <input type="hidden"
++      name="existing_device" value="1" />
++  </py:if>
++
++  <input type="hidden" name="sharable" value="1" />
++  <input type="hidden" name="num_instances" value="${ni}"/>
++  <input type="hidden" name="fence_type" value="fence_pvevm" />
++</div>
++
++<div py:def="fence_pvect(cur_fencedev, ni)" id="fence_pvect" class="fencedevform row"
++   py:attrs="cur_fencedev and {'id': 'fd_%s' % cur_fencedev.getName()}">
++  <table class="formtable">
++    <tr>
++      <td>Fence Type</td>
++      <td>Proxmox VE Container Fence Agent</td>
++    </tr>
++    <tr>
++      <td>Name</td>
++      <td>
++        <input name="name" type="text" class="text"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getName()} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>IP Address or Hostname</td>
++      <td>
++        <input name="ipaddr" type="text" class="text"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('ipaddr')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>IP Port (optional)</td>
++      <td>
++        <input name="ipport" type="text" class="text"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('ipport')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Login</td>
++      <td>
++        <input name="login" type="text" class="text"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('login')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Password</td>
++      <td>
++        <input name="passwd" type="password" class="text" autocomplete="off"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('passwd')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>
++        <span title="Full path to a script to generate fence password">Password Script (optional)</span>
++      </td>
++      <td>
++        <input type="text" class="text" name="passwd_script"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('passwd_script')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Power Wait (seconds)</td>
++      <td>
++        <input type="text" class="text" name="power_wait"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('power_wait')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Power Timeout (seconds)</td>
++      <td>
++        <input type="text" class="text" name="power_timeout"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('power_timeout')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Shell Timeout (seconds)</td>
++      <td>
++        <input type="text" class="text" name="shell_timeout"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('shell_timeout')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Login Timeout (seconds)</td>
++      <td>
++        <input type="text" class="text" name="login_timeout"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('login_timeout')} or {}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Times to Retry Power On Operation</td>
++      <td>
++        <input type="text" class="text" name="retry_on"
++          py:attrs="cur_fencedev and {'value': cur_fencedev.getAttribute('retry_on')} or {}"/>
++      </td>
++    </tr>
++  </table>
++
++  <py:if test="cur_fencedev">
++    <input type="hidden"
++      name="orig_name" value="${cur_fencedev.getName()}"/>
++    <input type="hidden"
++      name="existing_device" value="1" />
++  </py:if>
++
++  <input type="hidden" name="sharable" value="1" />
++  <input type="hidden" name="num_instances" value="${ni}"/>
++  <input type="hidden" name="fence_type" value="fence_pvect" />
++</div>
++
++
+ <div py:def="fence_rhevm(cur_fencedev, ni)" id="fence_rhevm" class="fencedevform row"
+    py:attrs="cur_fencedev and {'id': 'fd_%s' % cur_fencedev.getName()}">
+   <table class="formtable">
+@@ -4715,6 +4916,8 @@ ${fence_bladecenter(None,0)}
+ ${fence_bullpap(None,0)}
+ ${fence_virt(None,0)}
+ ${fence_virsh(None,0)}
++${fence_pvevm(None,0)}
++${fence_pvect(None,0)}
+ ${fence_rhevm(None,0)}
+ ${fence_xvm(None,0)}
+ ${fence_scsi(None,0)}
+@@ -4842,6 +5045,8 @@ ${fence_unknown(None,0)}
+         <option name="fence_alom" value="fence_alom">Sun ALOM</option>
+         <option name="fence_ldom" value="fence_ldom">Sun LDOM</option>
+         <option name="fence_virsh" value="fence_virsh">virsh fence agent</option>
++        <option name="fence_pvevm" value="fence_pvevm">Proxmox VE VM fence agent</option>
++        <option name="fence_pvect" value="fence_pvect">Proxmox VE Container fence agent</option>
+       </py:if>
+ 
+       <option py:if="cluster_version == 2" name="fence_vixel" value="fence_vixel">Vixel SAN Switch</option>
+diff --git a/templates/fence_instances.html b/templates/fence_instances.html
+index 3b915bc..de3d71c 100644
+--- a/templates/fence_instances.html
++++ b/templates/fence_instances.html
+@@ -374,6 +374,116 @@
+     py:attrs="cur_fence_dev_id and {'value': cur_fence_dev_id} or {}" />
+ </div>
+ 
++<div py:def="fence_pvevm_instance(cur_fence_inst, cur_fence_dev_id, fi_id, **kw)" id="fence_pvevm_instance"
++  py:attrs="fi_id is not None and {'id': fi_id, 'class':'fenceinst'}">
++  <table class="detailstable">
++    <tr>
++      <td>VM ID</td>
++      <td>
++        <input name="port" type="text" class="text"
++          py:attrs="cur_fence_inst and {'value': cur_fence_inst.getAttribute('port')}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Delay (optional)</td>
++      <td>
++        <input name="delay" type="text" class="text"
++          py:attrs="cur_fence_inst and {'value': cur_fence_inst.getAttribute('delay')}"/>
++      </td>
++    </tr>
++    <tr><td>
++      <fieldset>
++        <legend>SSH</legend>
++        <table class="detailstable">
++         <tr>
++          <td>
++            <span title="Enable SSH operation">Use SSH</span>
++          </td>
++          <td>
++            <input type="checkbox" class="checkbox" name="secure"
++              py:attrs="cur_fence_inst and cur_fence_inst.getAttribute('secure') and {'checked': 'checked'}"/>
++          </td>
++         </tr>
++         <tr>
++          <td>Path to SSH Identity File</td>
++          <td>
++            <input type="text" class="text" name="identity_file"
++              py:attrs="cur_fence_inst and {'value': cur_fence_inst.getAttribute('identity_file')}"/>
++          </td>
++         </tr>
++        </table>
++      </fieldset>
++    </td></tr>
++    <tr><td colspan="2">
++      <div>
++        <input type="button" name="remove_fence" value="Remove this instance"
++          py:attrs="fi_id is not None and {'onclick': '$(\'#%s\').remove()' % fi_id} or {}"/>
++      </div>
++    </td></tr>
++  </table>
++
++  <input type="hidden" name="fence_type" value="fence_pvevm" />
++  <input type="hidden" name="fence_instance" value="1" />
++  <input type="hidden" name="parent_fencedev"
++    py:attrs="cur_fence_dev_id and {'value': cur_fence_dev_id} or {}" />
++</div>
++
++
++<div py:def="fence_pvect_instance(cur_fence_inst, cur_fence_dev_id, fi_id, **kw)" id="fence_pvect_instance"
++  py:attrs="fi_id is not None and {'id': fi_id, 'class':'fenceinst'}">
++  <table class="detailstable">
++    <tr>
++      <td>Container ID</td>
++      <td>
++        <input name="port" type="text" class="text"
++          py:attrs="cur_fence_inst and {'value': cur_fence_inst.getAttribute('port')}"/>
++      </td>
++    </tr>
++    <tr>
++      <td>Delay (optional)</td>
++      <td>
++        <input name="delay" type="text" class="text"
++          py:attrs="cur_fence_inst and {'value': cur_fence_inst.getAttribute('delay')}"/>
++      </td>
++    </tr>
++    <tr><td>
++      <fieldset>
++        <legend>SSH</legend>
++        <table class="detailstable">
++         <tr>
++          <td>
++            <span title="Enable SSH operation">Use SSH</span>
++          </td>
++          <td>
++            <input type="checkbox" class="checkbox" name="secure"
++              py:attrs="cur_fence_inst and cur_fence_inst.getAttribute('secure') and {'checked': 'checked'}"/>
++          </td>
++         </tr>
++         <tr>
++          <td>Path to SSH Identity File</td>
++          <td>
++            <input type="text" class="text" name="identity_file"
++              py:attrs="cur_fence_inst and {'value': cur_fence_inst.getAttribute('identity_file')}"/>
++          </td>
++         </tr>
++        </table>
++      </fieldset>
++    </td></tr>
++    <tr><td colspan="2">
++      <div>
++        <input type="button" name="remove_fence" value="Remove this instance"
++          py:attrs="fi_id is not None and {'onclick': '$(\'#%s\').remove()' % fi_id} or {}"/>
++      </div>
++    </td></tr>
++  </table>
++
++  <input type="hidden" name="fence_type" value="fence_pvect" />
++  <input type="hidden" name="fence_instance" value="1" />
++  <input type="hidden" name="parent_fencedev"
++    py:attrs="cur_fence_dev_id and {'value': cur_fence_dev_id} or {}" />
++</div>
++
++
+ <div py:def="fence_rhevm_instance(cur_fence_inst, cur_fence_dev_id, fi_id, **kw)" id="fence_rhevm_instance"
+   py:attrs="fi_id is not None and {'id': fi_id, 'class':'fenceinst'}">
+   <table class="detailstable">
+@@ -1386,6 +1496,8 @@ ${fence_ifmib_instance(None, None, None)}
+ ${fence_intelmodular_instance(None, None, None)}
+ ${fence_ipdu_instance(None, None, None)}
+ ${fence_virsh_instance(None, None, None)}
++${fence_pvevm_instance(None, None, None)}
++${fence_pvect_instance(None, None, None)}
+ ${fence_rhevm_instance(None, None, None)}
+ ${fence_drac_instance(None, None, None)}
+ ${fence_drac5_instance(None, None, None)}
+diff --git a/validation/validate_fence.py b/validation/validate_fence.py
+index 4b6e968..66535da 100644
+--- a/validation/validate_fence.py
++++ b/validation/validate_fence.py
+@@ -191,6 +191,42 @@ def val_virsh_fd(fencedev, fence_name, **kw):
+ 	errors = config_fence_attr(params, fencedev, fence_name, **kw)
+ 	return errors
+ 
++def val_pvevm_fd(fencedev, fence_name, **kw):
++	params = (
++		('ipaddr', True),
++		('ipport', False),
++		('login', True),
++		('passwd', False),
++		('passwd_script', False),
++		('power_wait', False),
++		('power_timeout', False),
++		('shell_timeout', False),
++		('login_timeout', False),
++		('retry_on', False),
++	)
++
++	errors = config_fence_attr(params, fencedev, fence_name, **kw)
++	return errors
++
++
++def val_pvect_fd(fencedev, fence_name, **kw):
++	params = (
++		('ipaddr', True),
++		('ipport', False),
++		('login', True),
++		('passwd', False),
++		('passwd_script', False),
++		('power_wait', False),
++		('power_timeout', False),
++		('shell_timeout', False),
++		('login_timeout', False),
++		('retry_on', False),
++	)
++
++	errors = config_fence_attr(params, fencedev, fence_name, **kw)
++	return errors
++
++
+ def val_brocade_fd(fencedev, fence_name, **kw):
+ 	params = (
+ 		('ipaddr', True),
+@@ -872,6 +908,8 @@ FD_VALIDATE = {
+ 	'fence_sanlock':		val_sanlock_fd,
+ 	'fence_scsi':			val_scsi_fd,
+ 	'fence_virsh':			val_virsh_fd,
++	'fence_pvevm':			val_pvevm_fd,
++	'fence_pvect':			val_pvect_fd,
+ 	'fence_virt':			val_virt_fd,
+ 	'fence_vixel':			val_vixel_fd,
+ 	'fence_vmware':			val_vmware_fd,
+@@ -971,6 +1009,30 @@ def val_virsh_fi(fenceinst, parent_name, **kw):
+ 	errors = config_fence_attr(params, fenceinst, parent_name, **kw)
+ 	return errors
+ 
++def val_pvevm_fi(fenceinst, parent_name, **kw):
++	params = (
++		('port', True),
++		('secure', False),
++		('identity_file', False),
++		('delay', False),
++	)
++
++	errors = config_fence_attr(params, fenceinst, parent_name, **kw)
++	return errors
++
++
++def val_pvect_fi(fenceinst, parent_name, **kw):
++	params = (
++		('port', True),
++		('secure', False),
++		('identity_file', False),
++		('delay', False),
++	)
++
++	errors = config_fence_attr(params, fenceinst, parent_name, **kw)
++	return errors
++
++
+ def val_brocade_fi(fenceinst, parent_name, **kw):
+ 	params = (
+ 		('port', True),
+@@ -1280,6 +1342,8 @@ FI_VALIDATE = {
+ 	'fence_sanlock':		val_sanlock_fi,
+ 	'fence_scsi':			val_scsi_fi,
+ 	'fence_virsh':			val_virsh_fi,
++	'fence_pvevm':			val_pvevm_fi,
++	'fence_pvect':			val_pvect_fi,
+ 	'fence_virt':			val_virt_fi,
+ 	'fence_vixel':			val_vixel_fi,
+ 	'fence_vmware':			val_vmware_fi,
