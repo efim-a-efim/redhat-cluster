@@ -1,8 +1,6 @@
 .idea
 .hg
 .hgignore
-LICENSE
-README.md
 ra/tomcat/bin
 ra/tomcat/dl
 ra/tomcat/lib
