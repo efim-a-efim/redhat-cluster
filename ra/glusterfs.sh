@@ -40,6 +40,7 @@ check_rw() {
 			return 1
 		fi
 		# if all OK
+		[[ -f "${_rwfile}" ]] && rm -f "${_rwfile}"
 		return 0
 	else
 		# Fall back to RO test
