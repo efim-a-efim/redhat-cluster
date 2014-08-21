@@ -1,0 +1,98 @@
+<?xml version="1.0"?>
+<resource-agent version="rgmanager 2.0" name="pg_receivexlog">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+        pg_receivexlog instance
+    </longdesc>
+    <shortdesc lang="en">
+        pg_receivexlog
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+	    <longdesc lang="en">
+	        Specifies a service name for logging and other purposes
+	    </longdesc>
+            <shortdesc lang="en">
+                Name
+            </shortdesc>
+	        <content type="string"/>
+        </parameter>
+
+        <parameter name="data_directory" required="1">
+            <longdesc lang="en">
+                Data directory
+            </longdesc>
+            <shortdesc lang="en">
+                Data directory
+            </shortdesc>
+	        <content type="string"/>
+        </parameter>
+
+        <parameter name="bin_path">
+            <longdesc lang="en">
+                Path to binaries directory
+            </longdesc>
+            <shortdesc lang="en">
+                Binaries path
+            </shortdesc>
+	        <content type="string"/>
+        </parameter>
+
+        <parameter name="user">
+            <longdesc lang="en">
+                User to run. May be in form "user:group".
+            </longdesc>
+            <shortdesc lang="en">
+                User
+            </shortdesc>
+	        <content type="string"/>
+        </parameter>
+
+        <parameter name="connection_parameters">
+            <longdesc lang="en">
+                DB connection parameters in libpq format
+            </longdesc>
+            <shortdesc lang="en">
+                DB connection params
+            </shortdesc>
+	        <content type="string" default="dbname=postgres user=postgres host=localhost port=5432"/>
+        </parameter>
+
+        <parameter name="log_file">
+            <longdesc lang="en">
+                Log file path
+            </longdesc>
+            <shortdesc lang="en">
+                Log file
+            </shortdesc>
+	        <content type="string" default="/var/log/pg_receivexlog.log"/>
+        </parameter>
+
+        <parameter name="log_verbose">
+            <longdesc lang="en">
+                Verbose log messages
+            </longdesc>
+            <shortdesc lang="en">
+                Verbose logging
+            </shortdesc>
+	        <content type="boolean" default="0"/>
+        </parameter>
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="10"/>
+        <action name="stop" timeout="30"/>
+        <action name="recover" timeout="40"/>
+
+        <action name="status" interval="30" timeout="10"/>
+        <action name="monitor" interval="30" timeout="10"/>
+
+        <action name="meta-data" timeout="0"/>
+        <action name="validate-all" timeout="0"/>
+    </actions>
+
+    <special tag="rgmanager">
+    </special>
+</resource-agent>
