@@ -1,13 +1,13 @@
 <?xml version="1.0" ?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1-modified.dtd">
-<resource-agent name="netfs" version="rgmanager 2.0">
+<resource-agent name="glusterfs" version="rgmanager 2.0">
     <version>1.0</version>
 
     <longdesc lang="en">
-        This defines an NFS/CIFS mount for use by cluster services.
+        This defines a GlusterFS mount.
     </longdesc>
     <shortdesc lang="en">
-        Defines an NFS/CIFS file system mount.
+        Defines a GlusterFS mount.
     </shortdesc>
 
     <parameters>
@@ -92,7 +92,7 @@
             <shortdesc lang="en">
                 Mount Options
             </shortdesc>
-	    <content type="string" default="defaults"/>
+	    <content type="string" default="defaults,_netdev,nodev"/>
         </parameter>
     </parameters>
 

@@ -32,21 +32,51 @@ declare PSQL_pid_file="`generate_name_for_pid_file`"
 declare PSQL_kill_timeout="5"
 declare PSQL_stop_timeout="15"
 declare PSQL_wait_after_start="2"
+[[ ${OCF_RESKEY_RGMANAGER_meta_timeout} -gt 1 ]] && PSQL_wait_after_start=$((${OCF_RESKEY_RGMANAGER_meta_timeout}-1))
 
-pg_check_pid() {
-	declare pid_file="$1"
+pg_check_process() {
+	local pid_file="$1"
+	local data_dir="${2:-/var/lib/postgresql/data}"
 
-	if [ -z "$pid_file" ] || [ ! -e "$pid_file" ]; then
-		return 1
+    # Input
+	if [ -z "$pid_file" ] || [ ! -e "$pid_file" ] || [ ! -r "$pid_file" ]; then
+	    ocf_log warning 'PID file does not exist or is invalid. Checking process...'
+	    pid="`ps --no-headers -U postgres -C 'postgres' -o pid,args | grep "\-D ${data_dir}" | tr -s ' ' | cut -d ' ' -f 2`"
+	    if [ "$pid" ]; then
+	        ocf_log warning "Found Postgres running with PID=$pid"
+	        return 1
+	    fi
+	    if [ -e "${pid_file}" ] && [ ! -r "${pid_file}" ]; then
+	        ocf_log warning "Postgres not running, but PID file exists"
+	        #rm -f "${pid_file}" && return 0
+	        return 2
+	    fi
+	    ocf_log debug "Postgres not running"
+	    return 0
+	else
+	    # PID file exists and is readable
+	    ocf_log debug "Using PID file to check Postgres"
+	    read pid < "$pid_file"
+	    if [ -z "$pid" ]; then
+	        ocf_log error "Postgres not running, but PID file exists"
+	        # rm -f "${pid_file}" && return 0
+	        return 0
+	    fi
+	    # Check process
+        if kill -0 "$pid"; then
+            # already running
+            return 1
+        else
+            ocf_log error "Postgres not running, but PID file exists"
+            # not running, but PID exists
+            # rm -f "${pid_file}" && return 0
+            # Invalid if cannot remove
+            return 0
+        fi
 	fi
 
-	read pid < "$pid_file"
-	
-	if [ -z "$pid" ] || [ ! -d /proc/$pid ]; then
-		return 1
-	fi
-
-	return 0
+    # We shouldn't get here any way, but assume "already running" in this case
+	return 1
 }
 
 pg_prepare_slave() {
@@ -101,6 +131,11 @@ verify_all()
 		return $OCF_ERR_ARGS
 	fi
 
+	if [ ${OCF_RESKEY_port} -le 1 ] || [ ${OCF_RESKEY_port} -gt 65535 ]; then
+	    clog_service_verify $CLOG_FAILED "Port value is invalid"
+		return $OCF_ERR_ARGS
+	fi
+
 	clog_service_verify $CLOG_SUCCEED
 		
 	return 0
@@ -111,9 +146,10 @@ start()
 {
 	clog_service_start $CLOG_INIT
 
-	# Check PID
-	pg_check_pid "${OCF_RESKEY_data_directory}/postmaster.pid"
-	if [ $? -eq 0 ]; then
+	# Check PID and process existence
+	pg_check_process "${OCF_RESKEY_data_directory}/postmaster.pid" "$OCF_RESKEY_data_directory"
+	if [ $? -ne 0 ]; then
+	    # Already running, throw PID error
 		clog_check_pid $CLOG_FAILED "${OCF_RESKEY_data_directory}/postmaster.pid"
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC
@@ -133,12 +169,12 @@ start()
 		fi
 	fi
 
-	su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/postgres -D \"$OCF_RESKEY_data_directory\" $OCF_RESKEY_postmaster_options" &> /dev/null &
+	su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/pg_ctl start -w -D \"$OCF_RESKEY_data_directory\" -o \"-p ${OCF_RESKEY_port} $OCF_RESKEY_postmaster_options\""
 
 	# We need to sleep for a second to allow pg_ctl to detect that we've started.
-	sleep $PSQL_wait_after_start
+	#sleep $PSQL_wait_after_start
 
-	su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/pg_ctl status -D \"$OCF_RESKEY_data_directory\" $OCF_RESKEY_postmaster_options" &> /dev/null
+	#su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/pg_ctl status -D \"$OCF_RESKEY_data_directory\" $OCF_RESKEY_postmaster_options" &> /dev/null
 	if [ $? -ne 0 ]; then
 		clog_service_start $CLOG_FAILED
 		return $OCF_ERR_GENERIC
@@ -153,14 +189,21 @@ stop()
 	clog_service_stop $CLOG_INIT
 
 	# Check PID
-	pg_check_pid "${OCF_RESKEY_data_directory}/postmaster.pid"
-	if [ $? -ne 0 ]; then
+	pg_check_process "${OCF_RESKEY_data_directory}/postmaster.pid" "$OCF_RESKEY_data_directory"
+	local _exitcode=$?
+	if [ ${_exitcode} -eq 0 ]; then
+	    # Already stopped
+	    ocf_log warning "Postgres already stopped"
 		clog_service_stop $CLOG_SUCCEED
 		return 0
+	elif [ ${_exitcode} -ge 2 ]; then
+	    # Handle invalid state
+	    clog_service_stop $CLOG_FAILED_NOT_STOPPED
+	    return $OCF_ERR_GENERIC
 	fi
 
 	# First try to stop it with pg_ctl
-	su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/pg_ctl stop -D \"$OCF_RESKEY_data_directory\" -t \"$PSQL_stop_timeout\" $OCF_RESKEY_postmaster_options" &> /dev/null
+	su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/pg_ctl stop -D \"$OCF_RESKEY_data_directory\" -t \"$PSQL_stop_timeout\"" &> /dev/null
 	if [ $? -eq 0 ]; then
 		clog_service_stop $CLOG_SUCCEED
 		return 0
@@ -173,7 +216,12 @@ stop()
 		clog_service_stop $CLOG_FAILED_KILL
 		return $OCF_ERR_GENERIC
 	fi
-	
+
+	# Remove PID file
+	if [ -f "${OCF_RESKEY_data_directory}/postmaster.pid" ]; then
+	    rm -f "${OCF_RESKEY_data_directory}/postmaster.pid"
+	fi
+
 	clog_service_stop $CLOG_SUCCEED_KILL
 	return 0;
 }
@@ -183,23 +231,21 @@ status()
 	clog_service_status $CLOG_INIT
 
 	# Lightweight checks
-	status_check_pid "${OCF_RESKEY_data_directory}/postmaster.pid"
-	if [ $? -ne 0 ]; then
+	ocf_log debug 'Checking Postgres PID file...'
+	pg_check_process "${OCF_RESKEY_data_directory}/postmaster.pid" "$OCF_RESKEY_data_directory"
+	local _exitcode=$?
+	if [ ${_exitcode} -eq 0 ]; then
 		clog_service_status $CLOG_FAILED "${OCF_RESKEY_data_directory}/postmaster.pid"
 		return $OCF_NOT_RUNNING
-	fi
-
-	# "Heavy" checks
-	if [ ${OCF_CHECK_LEVEL} -ge 10 ]; then
-		su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/pg_ctl status -D \"$OCF_RESKEY_data_directory\" $OCF_RESKEY_postmaster_options" &> /dev/null
-		if [ $? -ne 0 ]; then
-			return $OCF_NOT_RUNNING
-		fi
+	elif [ ${_exitcode} -ge 2 ]; then
+	    ocf_log error "Generic error on PID check"
+	    return $OCF_ERR_GENERIC
 	fi
 
 	# Very heavy checks
 	if [ ${OCF_CHECK_LEVEL} -ge 20 ]; then
-		su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/psql -c 'select 1;'" &> /dev/null
+	    ocf_log debug "Check level 20, checking with SELECT 1"
+		su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/psql -d 'host=localhost port=${OCF_RESKEY_port} user=${OCF_RESKEY_postmaster_user}' -c 'select 1;'" &> /dev/null
 		if [ $? -ne 0 ]; then
 			return $OCF_NOT_RUNNING
 		fi
@@ -207,6 +253,15 @@ status()
 
 	clog_service_status $CLOG_SUCCEED
 	return 0
+}
+
+pg_reload()
+{
+    su -l "$OCF_RESKEY_postmaster_user" -c "${OCF_RESKEY_psql_path}/pg_ctl reload -D \"$OCF_RESKEY_data_directory\""
+    if [ $? -ne 0 ]; then
+		clog_service_status $CLOG_FAILED "Cannot reload service"
+		return 1
+	fi
 }
 
 case $1 in
@@ -237,6 +292,10 @@ case $1 in
 		start
 		exit $?
 		;;
+    reload)
+        verify_all && pg_reload
+        exit $?
+        ;;
 	*)
 		echo "Usage: $0 {start|stop|status|monitor|restart|meta-data|validate-all}"
 		exit $OCF_ERR_UNIMPLEMENTED

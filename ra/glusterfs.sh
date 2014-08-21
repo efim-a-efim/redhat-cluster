@@ -96,9 +96,11 @@ start() {
 	clog_service_start $CLOG_INIT
 
 	# Check if FS is already mounted, get its options
-	findmnt -n -f -t "fuse.glusterfs" "${OCF_RESKEY_host}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" > /dev/null 2>&1
+	findmnt -n -f -t "fuse.glusterfs" "${OCF_RESKEY_host}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" || \
+	findmnt -n -f -t "fuse.glusterfs" "${OCF_RESKEY_host_backup}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" > /dev/null 2>&1
 	if [[ $? -eq 0 ]]; then
 		# Already mounted
+		ocf_log warning "Resource already mounted, nothing to do"
 		clog_service_start $CLOG_SUCCEED
 		return $OCF_SUCCESS;
 	fi
@@ -126,8 +128,10 @@ stop() {
 	fi
 
 	# Check if already unmounted
-	findmnt -n -f -t "fuse.glusterfs" "${OCF_RESKEY_host}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" > /dev/null 2>&1
+	findmnt -n -f -t "fuse.glusterfs" "${OCF_RESKEY_host}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" || \
+	findmnt -n -f -t "fuse.glusterfs" "${OCF_RESKEY_host_backup}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" > /dev/null 2>&1
 	if [[ $? -ne 0 ]]; then
+	    ocf_log warning "Resource not mounted, nothing to do"
 		clog_service_stop $CLOG_SUCCEED
 		return $OCF_SUCCESS
 	fi
@@ -140,6 +144,7 @@ stop() {
 	fi
 
 	# Force umount
+	ocf_log warning "Normal umount failed, forcing..."
 	clog_service_stop $CLOG_FAILED_NOT_STOPPED
 	if [[ "${OCF_RESKEY_force_umount}" != "0" ]]; then
 		umount -f "${OCF_RESKEY_host}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}"
@@ -156,12 +161,17 @@ stop() {
 
 status() {
 	clog_service_status $CLOG_INIT
+	ocf_log debug "Check level ${OCF_CHECK_LEVEL}"
 
 	# Lightweight checks
-	findmnt -n -f "${OCF_RESKEY_host}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" > /dev/null 2>&1
+	findmnt -n -f -t "fuse.glusterfs" "${OCF_RESKEY_host}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" > /dev/null 2>&1
 	if [[ $? -ne 0 ]]; then
-		clog_service_status $CLOG_FAILED
-		return $OCF_NOT_RUNNING
+	    # Check backup host
+	    findmnt -n -f -t "fuse.glusterfs" "${OCF_RESKEY_host_backup}:/${OCF_RESKEY_volume}" "${OCF_RESKEY_mountpoint}" > /dev/null 2>&1
+	    if [[ $? -ne 0 ]]; then
+	        clog_service_status $CLOG_FAILED
+		    return $OCF_NOT_RUNNING
+		fi
 	fi
 
 	# "Heavy" checks
@@ -174,6 +184,7 @@ status() {
 
 	# Very heavy checks
 	if [ ${OCF_CHECK_LEVEL} -ge 20 ]; then
+	    ocf_log debug "Performing RW test"
 		check_rw "${OCF_RESKEY_mountpoint}" > /dev/null 2>&1
 		if [[ $? -ne 0 ]]; then
 			return $OCF_NOT_RUNNING

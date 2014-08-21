@@ -1,16 +1,4 @@
 #!/bin/bash
-#
-# Copyr$$${CLOG_INIT}}}NIT}7-2003 Sistina Software, Inc.  All rights reserved.
-# Co${CLOG_FAILED}2004-2011 Red Ha${CLOG_F${CLOG_FAILE${OCF_ERR_ARGS}
-#
-# This pr${OCF_ERR_GEN${${CLOG_FAILED} you can r${OCF_ERR_GENERIC}C}_SUCCEED} modify it under the terms of the GNU General Public License
-# as published by the Free Software ${CLOG_FAILED}ei${CLOG_FAILED}${CLOG_SU${CLOG_FAILED}ENERIC}OCF_SUCCESS}ption) any lat${CLOG_SUCCEED}${OCF_ERR_ARGS}F_SUCCESS}stributed in the hope that it will be useful,
-# but WITHOUT ANY ${CLOG_FAILED}thout even the implied warranty of
-# MERCHANT${OCF_ERR_ARGS}TNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.${CLOG_FAILED}uld have received a copy of the GNU Gen${OCF_ERR_ARGS}icense
-# along with this program; if not, write to the Free Software
-# Founda${CLOG_FAILED}59 Temple Place - Suite 330, Boston,${OCF_ERR_ARGS}07, USA.
-#
 
 export LC_ALL=C
 export LANG=C
@@ -29,7 +17,7 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 # Java vars
 declare JAVA_HOME
-declare JAVA_OPTS
+declare JAVA_OPTS='-server -XX:+UseConcMarkSweepGC -Djava.awt.headless=true -XX:+CMSClassUnloadingEnabled'
 
 # Tomcat vars
 declare CATALINA_HOME
@@ -41,7 +29,11 @@ declare CATALINA_OPTS
 declare CATALINA_PORT
 
 # System tools
-declare SU='/bin/su -s /bin/sh'
+declare SU='/bin/su -s /bin/sh -m '
+declare WGET="`which wget | head -n 1`"
+
+# Checker vars
+declare CHECK_URL
 ##
 
 ################################################################################
@@ -49,35 +41,11 @@ declare SU='/bin/su -s /bin/sh'
 ################################################################################
 
 form_options() {
-    # Java
-    JAVA_HOME="${OCF_RESKEY_java_home:-/usr/java/default}"
-    JAVA_OPTS="${JAVA_OPTS} -XX:+UseConcMarkSweepGC -Djava.awt.headless=true -server -XX:+CMSClassUnloadingEnabled"
-
-    # Some logic on Java options
-
-    # Memory control options
-    [[ "${OCF_RESKEY_mem_start}" ]] && \
-        JAVA_OPTS="${JAVA_OPTS} -Xms$((${OCF_RESKEY_mem_start}+0))m"
-    [[ "${OCF_RESKEY_mem_max}" ]] && \
-        JAVA_OPTS="${JAVA_OPTS} -Xmx$((${OCF_RESKEY_mem_max}+0))m -XX:MaxPermSize=$((${OCF_RESKEY_mem_max}+0))m"
-
-    # OutOfMemory dump options
-    [[ "${OCF_RESKEY_dump_path}" ]] && \
-        JAVA_OPTS="${JAVA_OPTS} -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=${OCF_RESKEY_dump_path}/tomcat_`date +%Y.%m.%d-%H%M%S`.hprof"
-
-    # Java SNMP
-    [[ "${OCF_RESKEY_java_snmp_port}" ]] && [[ ${OCF_RESKEY_java_snmp_port} -gt 0 ]] && \
-        JAVA_OPTS="${JAVA_OPTS} -Dcom.sun.management.snmp.port=${OCF_RESKEY_java_snmp_port} -Dcom.sun.management.snmp.interface=127.0.0.1 -Dcom.sun.management.snmp.acl.file=${CATALINA_BASE}/conf/snmp.acl"
-
-    # Other Java options
-    [[ "${OCF_RESKEY_java_options}" ]] && \
-        JAVA_OPTS="${JAVA_OPTS} ${OCF_RESKEY_java_options}"
-
     # Form Tomcat options
-    CATALINA_HOME="${OCF_RESKEY_home}"
-    CATALINA_BASE="${OCF_RESKEY_home}"
-    CATALINA_PID="`generate_name_for_pid_file`"
-    CATALINA_USER="${OCF_RESKEY_user:-tomcat}"
+    export CATALINA_HOME="${OCF_RESKEY_home}"
+    export CATALINA_BASE="${OCF_RESKEY_home}"
+    export CATALINA_USER="${OCF_RESKEY_user:-tomcat}"
+    export CATALINA_PID="`generate_name_for_pid_file`"
 
     # determine group
     if [[ "`echo ${CATALINA_USER} | grep ':'`" ]]; then
@@ -89,10 +57,45 @@ form_options() {
 
     # default port = 8080
     CATALINA_PORT="${OCF_RESKEY_port:-8080}"
-    CATALINA_OPTS="-Dport.http.nonssl=${CATALINA_PORT}"
+    CATALINA_OPTS="${CATALINA_OPTS} -Dport.http.nonssl=${CATALINA_PORT}"
 
-    # System tools logic
-	[[ -x "/sbin/runuser" ]] && SU='/sbin/runuser -s /bin/sh'
+    # Java
+    export JAVA_HOME="${OCF_RESKEY_java_home:-/usr/java/default}"
+
+    # Some logic on Java options
+
+    # Memory control options
+    [[ "${OCF_RESKEY_mem_start}" ]] && \
+        CATALINA_OPTS="${CATALINA_OPTS} -Xms$((${OCF_RESKEY_mem_start}+0))m"
+    [[ "${OCF_RESKEY_mem_max}" ]] && \
+        CATALINA_OPTS="${CATALINA_OPTS} -Xmx$((${OCF_RESKEY_mem_max}+0))m"
+    [[ "${OCF_RESKEY_mem_perm_max}" ]] && \
+        CATALINA_OPTS="${CATALINA_OPTS} -XX:MaxPermSize=$((${OCF_RESKEY_mem_perm_max}+0))m"
+
+    # OutOfMemory dump options
+    [[ "${OCF_RESKEY_dump_path}" ]] && \
+        CATALINA_OPTS="${CATALINA_OPTS} -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=${OCF_RESKEY_dump_path}/tomcat_`date +%Y.%m.%d-%H%M%S`.hprof"
+
+    # Java SNMP
+    [[ "${OCF_RESKEY_java_snmp_port}" ]] && [[ ${OCF_RESKEY_java_snmp_port} -gt 0 ]] && \
+        CATALINA_OPTS="${CATALINA_OPTS} -Dcom.sun.management.snmp.port=${OCF_RESKEY_java_snmp_port} -Dcom.sun.management.snmp.interface=127.0.0.1 -Dcom.sun.management.snmp.acl.file=${CATALINA_BASE}/conf/snmp.acl"
+
+    # JMX
+    if [[ "${OCF_RESKEY_jmx_port}" ]] && [[ ${OCF_RESKEY_jmx_port} -gt 0 ]]; then
+        CATALINA_OPTS="${CATALINA_OPTS} -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=${OCF_RESKEY_jmx_port} -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
+    fi
+
+    # Other Java options
+    [[ "${OCF_RESKEY_java_options}" ]] && \
+        JAVA_OPTS="${JAVA_OPTS} ${OCF_RESKEY_java_options}"
+
+    export CATALINA_OPTS
+    export JAVA_OPTS
+
+    if [[ "${OCF_RESKEY_check_url}" ]]; then
+        CHECK_URL="${OCF_RESKEY_check_url}"
+    fi
+    export CHECK_URL
 
 	# Always return success, this function has no checks
 	return 0
@@ -100,13 +103,9 @@ form_options() {
 
 check_url() {
     local _url="$1"
-    local _data=`curl -f "${_url}" 2>/dev/null | head -c 1 | wc -l`
-    # check exit code
-    [[ $? -ne 0 ]] && return 1
-    # check that we received at least 1 byte of real HTTP data
-    [[ ${_data} -lt 1 ]] && return 1
-    # if all OK
-    return 0
+    local _to="${2:-1}"
+    ${WGET} -q -t 1 -T "${_to}" -O /dev/null "${_url}" >/dev/null 2>&1
+    return $?
 }
 
 check_listen_port() {
@@ -144,13 +143,9 @@ verify_all()
 	#	return $OCF_ERR_ARGS
 	#fi
 
-    # tomcat home
+	# tomcat home
 	if [[ -z "$OCF_RESKEY_home" ]]; then
 		clog_service_verify ${CLOG_FAILED} "tomcat home directory not specified"
-		return ${OCF_ERR_ARGS}
-	fi
-	if [[ ! -d "$OCF_RESKEY_home" ]]; then
-		clog_service_verify ${CLOG_FAILED} "tomcat home directory is invalid"
 		return ${OCF_ERR_ARGS}
 	fi
 
@@ -159,10 +154,7 @@ verify_all()
 	    clog_service_verify ${CLOG_FAILED} "Java home not specified"
 	    return ${OCF_ERR_ARGS}
 	fi
-	if [[ ! -d "${OCF_RESKEY_java_home}" ]]; then
-	    clog_service_verify ${CLOG_FAILED} "Java home is invalid"
-	    return ${OCF_ERR_ARGS}
-	fi
+
 	"${OCF_RESKEY_java_home}/bin/java" -version >/dev/null 2>&1
 	if [[ $? -ne 0 ]]; then
 	    clog_service_verify ${CLOG_FAILED} "Java cannot start"
@@ -177,13 +169,79 @@ verify_all()
         fi
     fi
 
+    # Check memory options
+    if [[ ${OCF_RESKEY_mem_start} -gt ${OCF_RESKEY_mem_max} ]]; then
+        clog_service_verify ${CLOG_FAILED} "Max. memory is less than startup memory"
+        return ${OCF_ERR_ARGS}
+    fi
+
 	clog_service_verify ${CLOG_SUCCEED}
+	return ${OCF_SUCCESS}
+}
+
+status()
+{
+	clog_service_status ${CLOG_INIT}
+
+	if [[ ! -d "$OCF_RESKEY_home" ]]; then
+		clog_service_status ${CLOG_FAILED} "tomcat home directory is invalid"
+		return ${OCF_NOT_RUNNING}
+	fi
+
+	if [[ ! -d "${OCF_RESKEY_java_home}" ]]; then
+	    clog_service_status ${CLOG_FAILED} "Java home is invalid"
+	    return ${OCF_NOT_RUNNING}
+	fi
+
+	ocf_log debug "Checking PID file ${CATALINA_PID}"
+	status_check_pid "${CATALINA_PID}"
+	if [[ $? -ne 0 ]]; then
+		clog_service_status ${CLOG_FAILED}
+		return ${OCF_NOT_RUNNING}
+	fi
+	ocf_log debug "PID file OK"
+
+	# "Heavy" checks
+	if [[ ${OCF_CHECK_LEVEL} -ge 10 ]]; then
+	    ocf_log debug "Checking port listen ${CATALINA_PORT}"
+		# Check body here
+		check_listen_port ${CATALINA_PORT} 'java'
+		if [ $? -ne 0 ]; then
+		    clog_service_status ${CLOG_FAILED}
+			return ${OCF_NOT_RUNNING}
+		fi
+		ocf_log debug "Port check OK"
+	fi
+
+	# Very heavy checks
+#	if [[ ${OCF_CHECK_LEVEL} -ge 20 ]]; then
+#	    ocf_log debug "Checking Tomcat by URL"
+#		# check body
+#        check_url "${CHECK_URL}" 10
+#		if [[ $? -gt 0 ]]; then
+#		    clog_service_status ${CLOG_FAILED}
+#			return ${OCF_NOT_RUNNING}
+#		fi
+#		ocf_log debug "URL check OK"
+#	fi
+
+	clog_service_status ${CLOG_SUCCEED}
 	return ${OCF_SUCCESS}
 }
 
 start()
 {
 	clog_service_start ${CLOG_INIT}
+
+	if [[ ! -d "$OCF_RESKEY_home" ]]; then
+		clog_service_start ${CLOG_FAILED} "tomcat home directory is invalid"
+		return ${OCF_NOT_RUNNING}
+	fi
+
+	if [[ ! -d "${OCF_RESKEY_java_home}" ]]; then
+	    clog_service_start ${CLOG_FAILED} "Java home is invalid"
+	    return ${OCF_NOT_RUNNING}
+	fi
 
     # Prepare PID directory
 	create_pid_directory
@@ -194,28 +252,72 @@ start()
 	if [[ $? -ne 0 ]]; then
 		clog_check_pid ${CLOG_FAILED} "${CATALINA_PID}"
 		clog_service_start ${CLOG_FAILED}
-		return ${OCF_ERR_GENERIC}
+		return ${OCF_NOT_RUNNING}
+	fi
+
+    # Test configs first
+    ocf_log debug "Config test..."
+	${SU} "${CATALINA_USER}" -c "${CATALINA_BASE}/bin/catalina.sh configtest" #>/dev/null 2>&1
+	if [[ $? -ne 0 ]]; then
+	    ocf_log debug "Config test failed"
+		clog_service_start ${CLOG_FAILED}
+		return ${OCF_NOT_RUNNING}
 	fi
 
     # Start Tomcat
-	${SU} "${CATALINA_USER}" -c "${CATALINA_BASE}/bin/catalina.sh start"
+    ocf_log debug "Starting Tomcat..."
+	${SU} "${CATALINA_USER}" -c "${CATALINA_BASE}/bin/catalina.sh start" #>/dev/null 2>&1
 	if [[ $? -ne 0 ]]; then
+	    ocf_log debug "Cannot start Tomcat"
 		clog_service_start ${CLOG_FAILED}
-		return ${OCF_ERR_GENERIC}
+		return ${OCF_NOT_RUNNING}
 	fi
 
-	clog_service_start ${CLOG_SUCCEED}
+    clog_service_start ${CLOG_SUCCEED}
 	return ${OCF_SUCCESS}
+
+    # OK if check url not specified
+#    if [[ -z "${CHECK_URL}" ]]; then
+#        clog_service_start ${CLOG_SUCCEED}
+#	    return ${OCF_SUCCESS}
+#    fi
+#    ocf_log debug "Waiting for Tomcat to fully start..."
+#    local _wait_time=${OCF_RESKEY_RGMANAGER_meta_timeout}
+#    while [[ ${_wait_time} -gt 2 ]]; do
+#        if check_url "${CHECK_URL}" 2; then
+#            clog_service_start ${CLOG_SUCCEED}
+#	        return ${OCF_SUCCESS}
+#	    fi
+#	    sleep ${_wait_time}
+#	    _wait_time=$((${OCF_RESKEY_RGMANAGER_meta_timeout}-2))
+#    done
+
+#    ocf_log debug "Failed to check Tomcat after start"
+#	clog_service_start ${CLOG_FAILED}
+#	return ${OCF_ERR_GENERIC}
 }
 
 stop()
 {
 	clog_service_stop ${CLOG_INIT}
 
-	stop_generic_sigkill "${CATALINA_PID}" "${OCF_RESKEY_shutdown_wait}" "${OCF_RESKEY_shutdown_wait}"
-	
+    local _stop_wait=$((${OCF_RESKEY_RGMANAGER_meta_timeout}/2))
+
+    ocf_log debug "Stopping Tomcat..."
+    if [ -x "${CATALINA_BASE}/bin/catalina.sh" ]; then
+	    ${SU} "${CATALINA_USER}" -c "${CATALINA_BASE}/bin/catalina.sh stop ${_stop_wait} -force" #>/dev/null 2>&1
+        if [[ $? -eq 0 ]]; then
+            clog_service_stop ${CLOG_SUCCEED}
+            return ${OCF_SUCCESS}
+        fi
+    fi
+    clog_service_stop ${CLOG_FAILED_NOT_STOPPED}
+
+    # We shouldn't come here at all
+    ocf_log debug "Killing Tomcat..."
+	stop_generic_sigkill "${CATALINA_PID}" "${_stop_wait}" "${_stop_wait}"
 	if [[ $? -ne 0 ]]; then
-		clog_service_stop ${CLOG_FAILED}
+		clog_service_stop ${CLOG_FAILED_KILL}
 		return ${OCF_ERR_GENERIC}
 	fi
 
@@ -224,39 +326,6 @@ stop()
 	fi
                                 
 	clog_service_stop ${CLOG_SUCCEED}
-	return ${OCF_SUCCESS}
-}
-
-status()
-{
-	clog_service_status ${CLOG_INIT}
-
-	status_check_pid "${CATALINA_PID}"
-	if [[ $? -ne 0 ]]; then
-		clog_service_status ${CLOG_FAILED}
-		return ${OCF_NOT_RUNNING}
-	fi
-
-	# "Heavy" checks
-	if [[ ${OCF_CHECK_LEVEL} -ge 10 ]]; then
-		# Check body here
-		check_listen_port ${CATALINA_PORT} 'java'
-		if [ $? -ne 0 ]; then
-			return ${OCF_NOT_RUNNING}
-		fi
-	fi
-
-	# Very heavy checks
-	if [[ ${OCF_CHECK_LEVEL} -ge 20 ]]; then
-		# check body
-        check_url "http://127.0.0.1:${CATALINA_PORT}/tomcat/info"
-		if [[ $? -ne 0 ]]; then
-		    clog_service_status ${CLOG_FAILED}
-			return ${OCF_NOT_RUNNING}
-		fi
-	fi
-
-	clog_service_status ${CLOG_SUCCEED}
 	return ${OCF_SUCCESS}
 }
 
@@ -284,7 +353,7 @@ case $1 in
 		verify_all && form_options && status
 		exit $?
 		;;
-	restart)
+	restart|recover)
 		verify_all && form_options
 		stop
 		start
